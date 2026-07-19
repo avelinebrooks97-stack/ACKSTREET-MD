@@ -21,12 +21,11 @@ function cleanupJob(requestId) {
 }
 
 async function runPairing(requestId, phoneNumber) {
-  const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    fetchLatestBaileysVersion,
-  } = await import('@whiskeysockets/baileys');
-
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestWaWebVersion,
+} = await import('@whiskeysockets/baileys');
   const sessionDir = path.join(TEMP_ROOT, requestId);
   fs.mkdirSync(sessionDir, { recursive: true });
 
