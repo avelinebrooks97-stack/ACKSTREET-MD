@@ -6,6 +6,7 @@ const pino = require('pino');
 
 const SESSION_PREFIX = 'ACKSTREET-MD~';
 const TEMP_ROOT = path.join(__dirname, 'temp_sessions');
+const PUBLIC_DIR = path.join(__dirname, 'public');
 const PORT = process.env.PORT || 3000;
 
 if (!fs.existsSync(TEMP_ROOT)) fs.mkdirSync(TEMP_ROOT, { recursive: true });
@@ -16,14 +17,10 @@ const jobs = new Map();
 function cleanupJob(requestId) {
   const dir = path.join(TEMP_ROOT, requestId);
   fs.rm(dir, { recursive: true, force: true }, () => {});
-  // Keep the job entry around briefly so the frontend's last poll still works,
-  // then drop it.
   setTimeout(() => jobs.delete(requestId), 5 * 60 * 1000);
 }
 
 async function runPairing(requestId, phoneNumber) {
-  // Baileys 7+ is ESM-only, so it must be loaded with a dynamic import()
-  // even from this CommonJS file. See: https://baileys.wiki/docs/migration/to-v7.0.0/
   const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -51,7 +48,6 @@ async function runPairing(requestId, phoneNumber) {
 
     if (connection === 'open') {
       try {
-        // Give creds.update a moment to flush the final write to disk.
         await new Promise(res => setTimeout(res, 1500));
         const credsPath = path.join(sessionDir, 'creds.json');
         const credsRaw = fs.readFileSync(credsPath, 'utf-8');
@@ -59,7 +55,6 @@ async function runPairing(requestId, phoneNumber) {
 
         jobs.set(requestId, { status: 'connected', sessionId });
 
-        // We only needed this connection long enough to capture the creds.
         await sock.logout().catch(() => {});
         sock.end();
         cleanupJob(requestId);
@@ -78,7 +73,6 @@ async function runPairing(requestId, phoneNumber) {
     }
   });
 
-  // Request the pairing code once the socket has had a moment to initialize.
   setTimeout(async () => {
     try {
       const code = await sock.requestPairingCode(phoneNumber);
@@ -93,7 +87,11 @@ async function runPairing(requestId, phoneNumber) {
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(PUBLIC_DIR));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+});
 
 app.post('/api/pair', async (req, res) => {
   const rawNumber = (req.body?.number || '').replace(/[^0-9]/g, '');
@@ -116,6 +114,8 @@ app.get('/api/status/:requestId', (req, res) => {
   if (!job) return res.status(404).json({ error: 'Unknown or expired request.' });
   res.json(job);
 });
+
+console.log('Public dir contents:', fs.readdirSync(PUBLIC_DIR));
 
 app.listen(PORT, () => {
   console.log(`ACKSTREET MD pairing site running on port ${PORT}`);
