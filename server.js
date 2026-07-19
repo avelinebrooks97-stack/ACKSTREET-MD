@@ -30,7 +30,7 @@ async function runPairing(requestId, phoneNumber) {
   fs.mkdirSync(sessionDir, { recursive: true });
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-  const { version } = await fetchLatestBaileysVersion();
+  const { version } = await fetchLatestWaWebVersion();
 
   const sock = makeWASocket({
     version,
